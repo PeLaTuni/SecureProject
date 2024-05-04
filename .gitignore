@@ -6,6 +6,8 @@
 # Setup files
 *.bin
 *.txt
+Meta.cpp
+Meta.h
 
 # User-specific files
 *.rsuser

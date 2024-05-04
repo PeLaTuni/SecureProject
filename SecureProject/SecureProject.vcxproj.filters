@@ -21,9 +21,6 @@
     <ClCompile Include="Meta.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Meta256.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="Decrypter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -36,9 +33,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Meta.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Meta256.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Decrypter.h">

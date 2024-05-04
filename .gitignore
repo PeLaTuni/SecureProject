@@ -3,6 +3,10 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
+# Setup files
+*.bin
+*.txt
+
 # User-specific files
 *.rsuser
 *.suo

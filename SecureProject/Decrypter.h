@@ -125,7 +125,11 @@ private:
 	// Tests if the rainbow table has any errors
 	// If the file cannot be opened, the digest length is not supported, or the reading process contains
 	// any errors, returns false. Otherwise true
-	bool test_rainbow_table(std::string filename);
+	bool test_rainbow_table(const std::string& filename);
+
+	// Tests if the hash file has any errors
+	// If the file cannot be opened or the reading process contains any errors, returns false. Otherwise true
+	bool test_hash_file(const std::string& filename);
 
 
 	// MISC //
@@ -134,6 +138,7 @@ private:
 	std::string rainbow_table_ = "";
 	int brute_depth_ = 3;
 	std::string start_quess_ = "";
+	std::string salt_ = "";
 
 	// Characters used for the Brute test
 	const std::string chars_ = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*_-+=?";
@@ -145,13 +150,7 @@ private:
 	unsigned char hash512_[SHA512_DIGEST_LENGTH] = {};
 
 
-	// STRUCTS //
-	// A hashed password and its size
-	struct Hash_struct {
-		unsigned char* hash = nullptr;
-		int len = 0;
-	};
-	
+	// STRUCTS //	
 	// Name of the algorithm, predefined buffer and a pointer to
 	// the algorithm in the Sha-class
 	struct Sha_struct {

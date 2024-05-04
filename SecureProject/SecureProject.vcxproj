@@ -133,12 +133,14 @@
   <ItemGroup>
     <ClCompile Include="Cli.cpp" />
     <ClCompile Include="Decrypter.cpp" />
+    <ClCompile Include="Meta.cpp" />
     <ClCompile Include="SecureProject.cpp" />
     <ClCompile Include="Sha.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Cli.h" />
     <ClInclude Include="Decrypter.h" />
+    <ClInclude Include="Meta.h" />
     <ClInclude Include="Sha.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

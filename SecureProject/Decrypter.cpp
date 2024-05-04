@@ -63,30 +63,44 @@ void Decrypter::solve_hash_file(const std::vector<std::string>& params) {
 		return;
 	}
 
-	// Tries to open the hash-file
+	// Tests the hash file
+	if (not test_hash_file(params.at(0))) { std::cout << std::endl; return; }
+
+	// Open the hash file
 	std::ifstream hashfile(params.at(0), std::ios::binary);
-	if (not hashfile) {
-		std::cout << "Could not open hash-file" << std::endl;
-		return;
-	}
+
+	// Reads the amount
+	uint32_t amount = 0;
+	hashfile.read(reinterpret_cast<char*>(&amount), sizeof(amount));
 
 	// Starts to read the file
 	int i = 1;
 	while (true) {
-		// Reads the hash and its length
-		Hash_struct hash;
+		// Reads the digest length
 		uint8_t length = 0;
-		hashfile.read(reinterpret_cast<char*>(&length), sizeof(length));
-		if (hashfile.eof()) { break; };
-		hash.len = static_cast<int>(length);
-		hash.hash = new unsigned char[hash.len];
-		hashfile.read(reinterpret_cast<char*>(hash.hash), hash.len);
+		if (not hashfile.read(reinterpret_cast<char*>(&length), sizeof(length))) { break; }
+
+		// Opening message
+		std::cout << "PASSWORD: " << i++ << std::endl;
+
+		// Reads the hash
+		unsigned char* hash = new unsigned char[length];
+		hashfile.read(reinterpret_cast<char*>(hash), length);
+
+		// Do we support this digest length
+		bool support = false;
+		for (auto &sha : sha_) {
+			if (sha.first == length) { support = true; break; }
+		}
+		if (not support) {
+			std::cout << "Hash digest length '" << static_cast<int>(length) << "' not supported" << std::endl << std::endl;
+			continue;
+		}
 
 		// Perform tests on the hash
-		std::cout << "PASSWORD: " << i++ << std::endl;
-		run_tests(hash.hash, hash.len);
-		delete[] hash.hash;
-		hash.hash = nullptr;
+		run_tests(hash, length);
+		delete[] hash;
+		hash = nullptr;
 		std::cout << std::endl;
 	}
 
@@ -103,7 +117,7 @@ void Decrypter::set_wordlist(const std::vector<std::string>& params) {
 	std::string wordlist = params.at(0);
 	std::ifstream wordfile(wordlist);
 	if (not wordfile) {
-		std::cout << "Could not open wordlist" << std::endl;
+		std::cout << "Error: Could not open wordlist" << std::endl << std::endl;
 	}
 	else {
 		wordslist_ = wordlist;
@@ -115,18 +129,12 @@ void Decrypter::set_wordlist(const std::vector<std::string>& params) {
 
 // Sets rainbow table
 void Decrypter::set_rainbow_table(const std::vector<std::string>& params) {
-	// Tries to open the file
-	std::string rainbowlist = params.at(0);
-	std::ifstream rainbowfile(rainbowlist);
-	if (not rainbowfile) {
-		std::cout << "Could not open rainbow table" << std::endl << std::endl;
-		return;
-	}
-	else {
-		rainbow_table_ = rainbowlist;
-		std::cout << "Rainbow table set as: " << rainbowlist << std::endl << std::endl;;
-		rainbowfile.close();
-	}
+	// Tests the table
+	if (not test_rainbow_table(params.at(0))) { std::cout << std::endl; return; }
+
+	// Sets the table
+	rainbow_table_ = params.at(0);
+	std::cout << "Rainbow table set as: " << rainbow_table_ << std::endl << std::endl;
 }
 
 
@@ -144,7 +152,7 @@ void Decrypter::set_brute_depth(const std::vector<std::string>& params) {
 		}
 	}
 	catch (const std::invalid_argument& e) {
-		std::cerr << "Must be a positive integer" << std::endl << std::endl;
+		std::cerr << "Must be a positive integer" << e.what() << std::endl << std::endl;
 	}
 	catch (const std::out_of_range& e) {
 		std::cerr << "Must be a positive integer" << e.what() << std::endl << std::endl;
@@ -244,18 +252,23 @@ bool Decrypter::rainbow_attack(unsigned char* hashed_password, int len) {
 	// Prints out which test we are running
 	std::cout << "Rainbow table: ";
 
+	// If there is a salt, then a rainbow table is useless
+	if (salt_.size() != 0) {
+		std::cout << "Salt has been set" << std::endl;
+		return false;
+	}
+
 	// The rainbow table must be set beforehand
 	if (rainbow_table_.size() < 1) {
 		std::cout << "No rainbowlist" << std::endl;
 		return false;
 	}
 
+	// Tests the rainbow table, in case of modifications
+	if (not test_rainbow_table(rainbow_table_)) { std::cout << std::endl; return false; }
+
 	// Tries to open the rainbow table
 	std::ifstream input(rainbow_table_, std::ios::binary);
-	if (not input) {
-		std::cerr << "Could not open file" << std::endl;
-		return false;
-	}
 
 	// If the digest length of the password is different from the rainbow table,
 	// then the test returns false
@@ -267,16 +280,16 @@ bool Decrypter::rainbow_attack(unsigned char* hashed_password, int len) {
 		return false;
 	}
 
+	// Reads the amount of passwords (testing)
+	uint32_t password_amount = 0;
+	input.read(reinterpret_cast<char*>(&password_amount), sizeof(password_amount));
+
 	// Goes through the rainbow table
 	unsigned char* hash = new unsigned char[read_length];
 	int i = 0;
 	while (true) {
 		// Stops when there is no more hash to read
-		if (not input.read(reinterpret_cast<char*>(hash), read_length)) {
-			delete[] hash;
-			hash = nullptr;
-			break;
-		}
+		if (not input.read(reinterpret_cast<char*>(hash), read_length)) { break; }
 		i++;
 
 		// The length of the password
@@ -291,14 +304,29 @@ bool Decrypter::rainbow_attack(unsigned char* hashed_password, int len) {
 		// Compare the hashes
 		if (std::memcmp(hash, hashed_password, len) == 0) {
 			input.close();
-			std::cout << password << " (" << i << " tries)" << std::endl;
+
+			// Test if the password was hashed correctly
+			bool correct = true;
+			unsigned char* hash_check = new unsigned char[read_length];
+			(Sha().*(sha_.at(len).ptr))((unsigned char*)password.c_str(), strlen(password.c_str()), hash_check);
+			if (std::memcmp(hash, hash_check, len) == 0) {
+				std::cout << password << " (" << i << " tries)" << std::endl;
+				correct = true;
+			} else {
+				std::cout << "Error: " << password << " hashed incorrectly" << std::endl;
+				correct = false;
+			}
 			delete[] hash;
+			delete[] hash_check;
 			hash = nullptr;
-			return true;
+			hash_check = nullptr;
+			return correct;
 		}
 	}
 
 	// The password was not found
+	delete[] hash;
+	hash = nullptr;
 	input.close();
 	std::cout << "No matches found" << " (" << i << " tries)" << std::endl;
 	return false;
@@ -459,52 +487,118 @@ bool Decrypter::brute_recursive(std::string& brute, int depth, unsigned char* ha
 
 
 // Tests if a rainbow table is faulty
-bool Decrypter::test_rainbow_table(std::string filename) {
+bool Decrypter::test_rainbow_table(const std::string& filename) {
 	// Tries to open the file
-	std::ifstream rainbowfile(filename);
+	std::ifstream rainbowfile(filename, std::ios::binary);
 	if (not rainbowfile) {
-		std::cout << "Rainbow table '" << filename << "' could not be opened" << std::endl;
+		std::cout << "Error: Rainbow table '" << filename << "' could not be opened" << std::endl;
 		return false;
 	}
-	std::streampos file_size = rainbowfile.tellg();
 
 	// Checks the digest length of the table
-	bool works = false;
+	bool supported = false;
 	uint8_t read_length = 0;
-	rainbowfile.read(reinterpret_cast<char*>(&read_length), sizeof(read_length));
-	for (auto &sha : sha_) {
-		if (sha.first == read_length) { 
-			works = true;
-			break;
-		}
-	}
-	if (not works) {
+	if (not rainbowfile.read(reinterpret_cast<char*>(&read_length), sizeof(read_length))) {
 		rainbowfile.close();
-		std::cout << "Digest length '" << static_cast<int>(read_length) << "' not supported" << std::endl;
+		std::cout << "Error: Could not read digest length" << std::endl;
+		return false;
+	}
+	for (auto &sha : sha_) {
+		if (sha.first == read_length) { supported = true; break; }
+	}
+	if (not supported) {
+		rainbowfile.close();
+		std::cout << "Error: Digest length '" << static_cast<int>(read_length) << "' not supported" << std::endl;
+		return false;
+	}
+
+	// How many passwords do we have
+	uint32_t size = 0;
+	if (not rainbowfile.read(reinterpret_cast<char*>(&size), sizeof(size))) {
+		rainbowfile.close();
+		std::cout << "Error: Could not read amount of hashes" << std::endl;
+		return false;
+	} else if (size == 0) {
+		rainbowfile.close();
+		std::cout << "Error: Amount of passwords cannot be zero" << std::endl;
 		return false;
 	}
 
 	// Goes through the file and tests if it works
 	unsigned char* hash = new unsigned char[read_length];
+	int pos = 0;
 	while (true) {
-		// Stops when there is no more hash to read
-		if (not rainbowfile.read(reinterpret_cast<char*>(hash), read_length)) {
-			delete[] hash;
-			hash = nullptr;
-			break;
-		}
+		// Reads the hash
+		if (not rainbowfile.read(reinterpret_cast<char*>(hash), read_length)) { break; }
 
 		// The length of the password
 		uint8_t length = 0;
-		rainbowfile.read(reinterpret_cast<char*>(&length), sizeof(length));
+		if (not rainbowfile.read(reinterpret_cast<char*>(&length), sizeof(length))) { break; }
 
 		// The password
 		std::string password = "";
 		password.resize(length);
-		rainbowfile.read(&password[0], length);
+		if (not rainbowfile.read(&password[0], length)) { break; }
+
+		// The end of the read operations
+		pos++;
+	}
+	delete[] hash;
+	hash = nullptr;
+	rainbowfile.close();
+
+	// Was the end of the file left unread
+	if (size != pos) {
+		std::cout << "Error: Formatting issue" << std::endl;
+		return false;
 	}
 
 	// Everything was fine
-	rainbowfile.close();
 	return true;
+}
+
+
+// Tests the hash file
+bool Decrypter::test_hash_file(const std::string& filename) {
+	// Tries to open the file
+	std::ifstream hashfile(filename, std::ios::binary);
+	if (not hashfile) {
+		std::cout << "Error: Hash file '" << filename << "' could not be opened" << std::endl;
+		return false;
+	}
+
+	// The amount of hashes
+	uint32_t size = 0;
+	if (not hashfile.read(reinterpret_cast<char*>(&size), sizeof(size))) {
+		hashfile.close();
+		std::cout << "Error: Could not read amount of hashes" << std::endl;
+		return false;
+	} else if (size == 0) {
+		hashfile.close();
+		std::cout << "Error: Amount of hashes cannot be zero" << std::endl;
+		return false;
+	}
+
+	// Goes through the file and tests if it works
+	int pos = 0;
+	while (true) {
+		// Reads the length of the hash
+		uint8_t length = 0;
+		if (not hashfile.read(reinterpret_cast<char*>(&length), sizeof(length))) { break; }
+
+		// Reads the hash
+		unsigned char* hash = new unsigned char[length];
+		if (not hashfile.read(reinterpret_cast<char*>(hash), length)) { delete[] hash; break; }
+
+		// Succesfull read
+		delete[] hash;
+		pos++;
+	}
+	hashfile.close();
+
+	// Was the end of the file left unread
+	if (size != pos) {
+		std::cout << "Error: Formatting issue" << std::endl;
+		return false;
+	}
 }

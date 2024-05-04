@@ -27,6 +27,9 @@
     <ClCompile Include="Sha.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Meta.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Decrypter.h">
@@ -36,6 +39,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Sha.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Meta.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

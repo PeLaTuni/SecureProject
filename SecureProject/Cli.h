@@ -68,7 +68,8 @@ private:
 		{ "swl", "Sets a wordlist",                                   {"filename"}, &Decrypter::set_wordlist},
 		{ "srt", "Sets a rainbow table",                              {"filename"}, &Decrypter::set_rainbow_table},
 		{ "sbd", "Sets how many characters the brute force attempts", {"depth"},    &Decrypter::set_brute_depth},
-		{ "siq", "Sets an initial quess for brute force and 1337",    {"quess"},    &Decrypter::set_brute_quess},
+		{ "siq", "Sets an initial quess (space for reset)",           {"quess"},    &Decrypter::set_brute_quess},
+		{ "ss",  "Sets the salt (space for reset)",					  {"salt"},     &Decrypter::set_salt},
 	};
 
 	// Internal variables

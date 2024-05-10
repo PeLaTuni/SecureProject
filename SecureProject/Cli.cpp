@@ -82,7 +82,7 @@ Cmd* Cli::check_command(std::vector<std::string>& inputs) {
 // Prints explanations
 void Cli::print_help() {
 	// Goes through available commands
-	for (auto command : cmds_) {
+	for (auto &command : cmds_) {
 		std::cout << command.command << ": " << command.command_exp << std::endl;
 	}
 	std::cout << std::endl;

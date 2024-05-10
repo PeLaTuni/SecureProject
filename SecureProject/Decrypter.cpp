@@ -20,7 +20,13 @@ void Decrypter::print_options(const std::vector<std::string>& params) {
 	std::cout << "Wordslist: " << wordslist_ << std::endl;
 	std::cout << "Rainbow table: " << rainbow_table_ << std::endl;
 	std::cout << "Brute depth: " << brute_depth_ << std::endl;
-	std::cout << "Starting quess: " << start_quess_ << std::endl << std::endl;
+	std::cout << "Starting quess: " << start_quess_ << std::endl;
+	std::cout << "Salt ";
+	if (salt_.size() == 0) {
+		std::cout << "not set" << std::endl << std::endl;
+	} else {
+		std::cout << "set" << std::endl << std::endl;
+	}
 	
 	// Tests toggled
 	std::cout << "TESTS" << std::endl;
@@ -45,8 +51,10 @@ void Decrypter::test_password(const std::vector<std::string>& params) {
 	}
 
 	// Constants and variables
+	std::string salted_password = params.at(0);
+	add_salt(salted_password);
 	unsigned char hashed_password[SHA256_DIGEST_LENGTH];
-	SHA256((unsigned char*)params.at(0).c_str(), params.at(0).size(), hashed_password);
+	SHA256((unsigned char*)salted_password.c_str(), salted_password.size(), hashed_password);
 
 	// Goes through all tests
 	run_tests(hashed_password, SHA256_DIGEST_LENGTH);
@@ -113,11 +121,17 @@ void Decrypter::solve_hash_file(const std::vector<std::string>& params) {
 // SETTERS //
 // Sets the wordlist
 void Decrypter::set_wordlist(const std::vector<std::string>& params) {
+	// Checks user input
+	if (params.at(0).size() == 0) {
+		std::cout << "Insert wordlist" << std::endl << std::endl;
+		return;
+	}
+
 	// Tries to open the file
 	std::string wordlist = params.at(0);
 	std::ifstream wordfile(wordlist);
 	if (not wordfile) {
-		std::cout << "Error: Could not open wordlist" << std::endl << std::endl;
+		std::cout << "Error: Wordlist '" << wordlist << "' could not be opened" << std::endl << std::endl;
 	}
 	else {
 		wordslist_ = wordlist;
@@ -129,6 +143,12 @@ void Decrypter::set_wordlist(const std::vector<std::string>& params) {
 
 // Sets rainbow table
 void Decrypter::set_rainbow_table(const std::vector<std::string>& params) {
+	// Checks user input
+	if (params.at(0).size() == 0) {
+		std::cout << "Insert rainbow table" << std::endl << std::endl;
+		return;
+	}
+
 	// Tests the table
 	if (not test_rainbow_table(params.at(0))) { std::cout << std::endl; return; }
 
@@ -162,8 +182,13 @@ void Decrypter::set_brute_depth(const std::vector<std::string>& params) {
 
 // Sets brute quess
 void Decrypter::set_brute_quess(const std::vector<std::string>& params) {
+	if (params.at(0).size() == 0) {
+		std::cout << "Initial quess reset" << std::endl << std::endl;
+		start_quess_ = "";
+		return;
+	}
 	start_quess_ = params.at(0);
-	std::cout << "Starting quess set as: " << params.at(0) << std::endl << std::endl;
+	std::cout << "Initial quess set as: " << params.at(0) << std::endl << std::endl;
 }
 
 
@@ -225,6 +250,26 @@ void Decrypter::set_tests(const std::vector<std::string>& params) {
 		tests_.at("1337").toggled = false;
 	}
 	std::cout << std::endl;
+}
+
+
+// Sets the salt
+void Decrypter::set_salt(const std::vector<std::string>& params) {
+	// Did we get a salt
+	if (params.at(0).size() == 0) {
+		std::cout << "Salt reset" << std::endl << std::endl;
+		salt_.clear();
+		return;
+	}
+
+	// Test conversion to binary
+	std::vector<uint8_t> bin;
+	std::string hex = params.at(0);
+	if (not hex_to_bin(hex, bin)) { return; }
+
+	// It worked, let's set it
+	salt_ = bin;
+	std::cout << "Salt set as: " << params.at(0) << std::endl << std::endl;
 }
 
 
@@ -356,9 +401,13 @@ bool Decrypter::dictionary_attack(unsigned char* hashed_password, int len) {
 	std::string row;
 	int i = 0;
 	while (getline(passwordfile, row)) {
+		// First the salt
+		std::string password = row;
+		add_salt(password);
+
 		// Using the correct sha-function, based on length of hashed password
 		i++;
-		(Sha().*(sha_.at(len).ptr))((unsigned char*)row.c_str(), strlen(row.c_str()), sha_.at(len).buffer);
+		(Sha().*(sha_.at(len).ptr))((unsigned char*)password.c_str(), strlen(password.c_str()), sha_.at(len).buffer);
 		if (std::memcmp(sha_.at(len).buffer, hashed_password, len) == 0) {
 			passwordfile.close();
 			std::cout << row << " (" << i << " tries)" << std::endl;
@@ -402,7 +451,9 @@ bool Decrypter::leet_attack(unsigned char* hashed_password, int len) {
 bool Decrypter::leet_recursive(std::string& start, std::string& end, unsigned char* hashed_password, int len) {
 	// If "start" is empty, then hashes "end" and compares it to the hashed password
 	if (start.size() < 1) {
-		(Sha().*(sha_.at(len).ptr))((unsigned char*)end.c_str(), strlen(end.c_str()), sha_.at(len).buffer);
+		std::string end_salted = end;
+		add_salt(end_salted);
+		(Sha().*(sha_.at(len).ptr))((unsigned char*)end_salted.c_str(), strlen(end_salted.c_str()), sha_.at(len).buffer);
 		if (std::memcmp(sha_.at(len).buffer, hashed_password, len) == 0) {
 			std::cout << end << std::endl;
 			return true;
@@ -469,7 +520,9 @@ bool Decrypter::brute_recursive(std::string& brute, int depth, unsigned char* ha
 	// If we are still within the depth limit
 	for (char cha : chars_) {
 		brute += cha;
-		(Sha().*(sha_.at(len).ptr))((unsigned char*)brute.c_str(), strlen(brute.c_str()), sha_.at(len).buffer);
+		std::string brute_salted = brute;
+		add_salt(brute_salted);
+		(Sha().*(sha_.at(len).ptr))((unsigned char*)brute_salted.c_str(), strlen(brute_salted.c_str()), sha_.at(len).buffer);
 		if (std::memcmp(sha_.at(len).buffer, hashed_password, len) == 0) {
 			std::cout << brute << std::endl;
 			return true;
@@ -494,6 +547,11 @@ bool Decrypter::test_rainbow_table(const std::string& filename) {
 		std::cout << "Error: Rainbow table '" << filename << "' could not be opened" << std::endl;
 		return false;
 	}
+
+	// How long is the file
+	rainbowfile.seekg(0, std::ios::end);
+	std::streampos end = rainbowfile.tellg();
+	rainbowfile.seekg(0, std::ios::beg);
 
 	// Checks the digest length of the table
 	bool supported = false;
@@ -527,6 +585,7 @@ bool Decrypter::test_rainbow_table(const std::string& filename) {
 	// Goes through the file and tests if it works
 	unsigned char* hash = new unsigned char[read_length];
 	int pos = 0;
+	std::streampos loc = rainbowfile.tellg();
 	while (true) {
 		// Reads the hash
 		if (not rainbowfile.read(reinterpret_cast<char*>(hash), read_length)) { break; }
@@ -542,13 +601,14 @@ bool Decrypter::test_rainbow_table(const std::string& filename) {
 
 		// The end of the read operations
 		pos++;
+		loc = rainbowfile.tellg();
 	}
 	delete[] hash;
 	hash = nullptr;
 	rainbowfile.close();
 
 	// Was the end of the file left unread
-	if (size != pos) {
+	if (not (size == pos and end == loc)) {
 		std::cout << "Error: Formatting issue" << std::endl;
 		return false;
 	}
@@ -567,6 +627,11 @@ bool Decrypter::test_hash_file(const std::string& filename) {
 		return false;
 	}
 
+	// How long is the file
+	hashfile.seekg(0, std::ios::end);
+	std::streampos end = hashfile.tellg();
+	hashfile.seekg(0, std::ios::beg);
+
 	// The amount of hashes
 	uint32_t size = 0;
 	if (not hashfile.read(reinterpret_cast<char*>(&size), sizeof(size))) {
@@ -581,10 +646,14 @@ bool Decrypter::test_hash_file(const std::string& filename) {
 
 	// Goes through the file and tests if it works
 	int pos = 0;
+	std::streampos loc = hashfile.tellg();
 	while (true) {
 		// Reads the length of the hash
 		uint8_t length = 0;
 		if (not hashfile.read(reinterpret_cast<char*>(&length), sizeof(length))) { break; }
+
+		// Did we read a zero
+		if (length == 0) { break; }
 
 		// Reads the hash
 		unsigned char* hash = new unsigned char[length];
@@ -593,12 +662,64 @@ bool Decrypter::test_hash_file(const std::string& filename) {
 		// Succesfull read
 		delete[] hash;
 		pos++;
+		loc = hashfile.tellg();
 	}
 	hashfile.close();
 
 	// Was the end of the file left unread
-	if (size != pos) {
+	if (not (size == pos and end == loc)) {
 		std::cout << "Error: Formatting issue" << std::endl;
 		return false;
 	}
+
+	// Went well
+	return true;
+}
+
+
+// Converts hexadecimal into binary
+bool Decrypter::hex_to_bin(const std::string& hex, std::vector<uint8_t>& bin)
+{
+	// Constants and variables
+	std::vector<uint8_t> placeholder_bin;
+
+	// Is the string divisible by two
+	if (hex.size() % 2 != 0) {
+		std::cout << "Error: Hexadecimal must be divisible by two" << std::endl;
+		return false;
+	}
+
+	// Conversion
+	for (size_t pos = 0; pos < hex.size(); pos+=2) {
+		// The conversion
+		std::stringstream ss;
+		uint8_t byte;
+		ss << std::hex << hex.substr(pos, 2);
+		ss >> byte;
+
+		// Check if conversion was successful
+		if (ss.fail()) {
+			std::cout << "Error: Failed to convert hexadecimal string" << std::endl;
+			return false;
+		}
+
+		// If was, add byte
+		placeholder_bin.push_back(byte);
+	}
+
+	// Check if the conversion went through
+	if (placeholder_bin.size() != hex.size() / 2) {
+		std::cout << "Error: Failed to convert hexadecimal string" << std::endl;
+		return false;
+	}
+
+	// Everything worked
+	bin = placeholder_bin;
+	return true;
+}
+
+
+// Add salt to string
+void Decrypter::add_salt(std::string& password) {
+	for (uint8_t byte : salt_) { password.push_back(byte); }
 }

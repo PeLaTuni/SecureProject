@@ -34,6 +34,8 @@
 #include <fstream>
 #include <vector>
 #include <unordered_map>
+#include <iomanip>
+#include <sstream>
 #include "Sha.h"
 
 
@@ -76,8 +78,11 @@ public:
 	void set_wordlist(const std::vector<std::string>& params);
 	void set_rainbow_table(const std::vector<std::string>& params);
 	void set_brute_depth(const std::vector<std::string>& params);
+	// Space for resetting the salt to empty
 	void set_brute_quess(const std::vector<std::string>& params);
 	void set_tests(const std::vector<std::string>& params);
+	// Space for resetting the salt to empty
+	void set_salt(const std::vector<std::string>& params);
 
 
 private:
@@ -90,6 +95,7 @@ private:
 	// If the password was found, then returns true. Otherwise returns false
 	// Also returns false, if the digest length of the hashed password is
 	// different from the rainbow table
+	// Also returns false, if a salt has been set
 	bool rainbow_attack(unsigned char* hashed_password, int len);
 
 	// Takes a hashed password and its length in bytes
@@ -131,6 +137,14 @@ private:
 	// If the file cannot be opened or the reading process contains any errors, returns false. Otherwise true
 	bool test_hash_file(const std::string& filename);
 
+	// Converts a string representing a hexadecimal number into binary
+	// Checks if input is even, and if the conversion is succesful
+	// Returns false, if above conditions are not met. Otherwise true
+	bool hex_to_bin(const std::string& hex, std::vector<uint8_t>& bin);
+
+	// Adds the saved salt to a string
+	void add_salt(std::string& password);
+
 
 	// MISC //
 	// Internal variables
@@ -138,7 +152,7 @@ private:
 	std::string rainbow_table_ = "";
 	int brute_depth_ = 3;
 	std::string start_quess_ = "";
-	std::string salt_ = "";
+	std::vector<uint8_t> salt_;
 
 	// Characters used for the Brute test
 	const std::string chars_ = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*_-+=?";
@@ -167,7 +181,7 @@ private:
 
 
 	// MAPS //
-	// "1337" -table
+	// "1337" -map
 	const std::unordered_map<char, std::vector<char>> leet_ = {
 		{'a', {'a', 'A', '4', '@'}},
 		{'b', {'b', 'B', '8'}},
